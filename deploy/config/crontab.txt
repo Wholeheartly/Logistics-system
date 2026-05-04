@@ -1,0 +1,14 @@
+# Logistics System - Cron Jobs
+# Add to crontab: crontab -e
+
+# Database backup - every day at 2:00 AM
+0 2 * * * /opt/logistics/deploy/scripts/backup.sh >> /opt/logistics/deploy/logs/backup.log 2>&1
+
+# Health check - every 5 minutes
+*/5 * * * * /opt/logistics/deploy/scripts/health-check.sh >> /opt/logistics/deploy/logs/health-check.log 2>&1 || echo "Health check failed at $(date)" | mail -s "Logistics System Alert" admin@company.com
+
+# Docker image cleanup - every Sunday at 3:00 AM
+0 3 * * 0 docker image prune -af --filter "until=168h" >> /opt/logistics/deploy/logs/maintenance.log 2>&1
+
+# Log rotation - every day at 0:00
+0 0 * * * find /opt/logistics/deploy/logs -name "*.log" -mtime +30 -delete >> /opt/logistics/deploy/logs/maintenance.log 2>&1

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useConfig } from '../context/ConfigContext';
 
-const API = 'http://localhost:8000';
+import API from '../../../config/api';
 
 interface ConfigDetail {
   id: number;

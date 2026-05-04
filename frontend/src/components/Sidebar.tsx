@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { AppModule } from '../App';
 
 interface UserInfo {
@@ -6,6 +6,7 @@ interface UserInfo {
   username: string;
   display_name: string;
   role: string;
+  avatar_url?: string;
 }
 
 interface SidebarProps {
@@ -67,7 +68,18 @@ const allNavItems: NavItem[] = [
 export default function Sidebar({ activeModule, onModuleChange, user, onLogout, onProfile, availableModules }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
   const visibleItems = allNavItems.filter((item) => availableModules[item.key]);
+
+  const showAvatarImage = user?.avatar_url && !avatarError;
+
+  const handleAvatarError = useCallback(() => {
+    setAvatarError(true);
+  }, []);
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.avatar_url]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -327,24 +339,40 @@ export default function Sidebar({ activeModule, onModuleChange, user, onLogout, 
               }}
               onClick={onProfile}
             >
-              <div
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 'var(--radius-full)',
-                  background: 'linear-gradient(135deg, var(--primary-500), var(--primary-700))',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 'var(--text-sm)',
-                  fontWeight: 'var(--font-bold)',
-                  color: '#fff',
-                  flexShrink: 0,
-                  boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)',
-                }}
-              >
-                {user.display_name?.charAt(0)?.toUpperCase() || user.username.charAt(0).toUpperCase()}
-              </div>
+              {showAvatarImage ? (
+                <img
+                  src={user.avatar_url}
+                  alt=""
+                  onError={handleAvatarError}
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 'var(--radius-full)',
+                    objectFit: 'cover',
+                    flexShrink: 0,
+                    boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)',
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 'var(--radius-full)',
+                    background: 'linear-gradient(135deg, var(--primary-500), var(--primary-700))',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 'var(--text-sm)',
+                    fontWeight: 'var(--font-bold)',
+                    color: '#fff',
+                    flexShrink: 0,
+                    boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)',
+                  }}
+                >
+                  {user.display_name?.charAt(0)?.toUpperCase() || user.username.charAt(0).toUpperCase()}
+                </div>
+              )}
               {!collapsed && (
                 <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                   <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--font-medium)', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

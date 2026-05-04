@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 
-const API = 'http://localhost:8000';
+import API from '../../config/api';
 
 interface ProfilePageProps {
   onClose: () => void;
@@ -20,8 +20,11 @@ export default function ProfilePage({ onClose }: ProfilePageProps) {
   const [changingPassword, setChangingPassword] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [previewAvatar, setPreviewAvatar] = useState<string | null>(user?.avatar_url || null);
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
   const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const displayAvatar = previewAvatar && !avatarLoadError;
 
   // 当 user 数据从后端更新时，同步本地表单状态
   useEffect(() => {
@@ -31,6 +34,7 @@ export default function ProfilePage({ onClose }: ProfilePageProps) {
       setPhone(user.phone || '');
       setDepartment(user.department || '');
       setPreviewAvatar(user.avatar_url || null);
+      setAvatarLoadError(false);
     }
   }, [user]);
 
@@ -126,7 +130,9 @@ export default function ProfilePage({ onClose }: ProfilePageProps) {
 
       const data = await res.json();
       if (res.ok) {
-        setPreviewAvatar(data.avatar_url);
+        const avatarUrl = data.avatar_url + (data.avatar_url.includes('?') ? '&' : '?') + 't=' + Date.now();
+        setPreviewAvatar(avatarUrl);
+        setAvatarLoadError(false);
         await refreshUser();
       } else {
         alert(data.detail || '头像上传失败');
@@ -198,10 +204,11 @@ export default function ProfilePage({ onClose }: ProfilePageProps) {
             }}
             onClick={triggerAvatarSelect}
           >
-            {previewAvatar ? (
+            {displayAvatar ? (
               <img
-                src={previewAvatar}
+                src={previewAvatar!}
                 alt="头像"
+                onError={() => setAvatarLoadError(true)}
                 style={{
                   width: '100%',
                   height: '100%',

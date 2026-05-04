@@ -3,3 +3,4 @@ uvicorn==0.34.2
 sqlalchemy==2.0.40
 openpyxl==3.1.5
 pydantic==2.11.3
+python-multipart==0.0.27

@@ -3,7 +3,7 @@ import { useProduct } from '../context/ProductContext';
 import { useAuth } from '../../../context/AuthContext';
 import type { Product } from '../../../types';
 
-const API = 'http://localhost:8000';
+import API from '../../../config/api';
 
 type UnitVersion = 'original' | 'converted';
 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { apiUrl } from '../../config/api';
 
 interface LoginPageProps {
   onSwitchToRegister: () => void;
@@ -28,7 +29,7 @@ export default function LoginPage({ onSwitchToRegister }: LoginPageProps) {
   const handleForgot = async () => {
     if (!forgotUser.trim()) return;
     try {
-      const res = await fetch('http://localhost:8000/api/auth/forgot-password', {
+      const res = await fetch(apiUrl('/api/auth/forgot-password'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: forgotUser }),
@@ -57,7 +58,7 @@ export default function LoginPage({ onSwitchToRegister }: LoginPageProps) {
     const v = validatePassword(newPassword);
     if (!v.ok) { alert(v.message); return; }
     try {
-      const res = await fetch('http://localhost:8000/api/auth/reset-password', {
+      const res = await fetch(apiUrl('/api/auth/reset-password'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: resetToken, new_password: newPassword }),

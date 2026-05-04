@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import type { ImportResult } from '../../../types';
 
-const API = 'http://localhost:8000';
+import API from '../../../config/api';
 
 type UploadTab = 'excel' | 'manual';
 

@@ -44,7 +44,8 @@ def calculate_shipping(
 
     # 3. 计算计费重
     volume_cubic_inch = length_inch * width_inch * height_inch
-    dim_weight = volume_cubic_inch / carrier.dim_factor
+    dim_factor = carrier.dim_factor if carrier.dim_factor and carrier.dim_factor > 0 else 139.0
+    dim_weight = volume_cubic_inch / dim_factor
     billed_weight = max(actual_weight_lb, dim_weight)
     billed_weight_int = round_up(billed_weight)
 
@@ -73,14 +74,15 @@ def calculate_shipping(
     # 7. 住宅附加费
     residential_fee = 0.0
     if is_residential and carrier.has_residential_fee:
-        residential_fee = carrier.residential_fee
+        residential_fee = carrier.residential_fee if carrier.residential_fee is not None else 0.0
 
     # 8. DAR + Non-Mach (仅 FDX Ground Economy)
     dar_fee = surcharge_result["dar_surcharge"]
     non_mach_fee = surcharge_result["non_mach_surcharge"]
 
     # 9. 燃油费 = (基础运费 + 最高附加费) × 燃油费率
-    fuel_fee = (base_freight + highest_surcharge) * carrier.fuel_rate
+    fuel_rate = carrier.fuel_rate if carrier.fuel_rate is not None else 0.0
+    fuel_fee = (base_freight + highest_surcharge) * fuel_rate
 
     # 10. 总费用
     total = base_freight + highest_surcharge + residential_fee + remote_fee + dar_fee + non_mach_fee + fuel_fee
@@ -104,7 +106,7 @@ def calculate_shipping(
         "dar_fee": round(dar_fee, 2),
         "non_mach_fee": round(non_mach_fee, 2),
         "fuel_fee": round(fuel_fee, 2),
-        "fuel_rate": carrier.fuel_rate,
+        "fuel_rate": fuel_rate,
         "total": round(total, 2),
         "total_without_fuel": round(total_without_fuel, 2),
         "transit_time": carrier.transit_time,

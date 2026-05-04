@@ -45,9 +45,11 @@ Thumbs.db
 *.log
 logs/
 
-# Environment variables
+# Environment variables (production secrets)
 .env
 .env.local
+.env.production
+deploy/.env.production
 *.local
 
 # Uploads
@@ -64,8 +66,38 @@ test_report_*.json
 
 # Node
 node_modules/
-dist/
+frontend/dist/
+frontend/.edgeone/
 .npm
+
+# Deploy artifacts (keep config/scripts, exclude temp files)
+deploy/migration_data/
+deploy/backup/
+deploy/logs/
+deploy/db_*.py
+deploy/read_sqlite.py
+deploy/generate_migration.py
+deploy/check_migration.py
+deploy/debug_migration.py
+deploy/retry_migration.py
+deploy/retry_migration2.py
+deploy/execute_migration.py
+deploy/run_migration.py
+deploy/deep_validate.py
+deploy/collect_info.py
+deploy/init_users_remote.py
+deploy/edgeone_deploy.py
+deploy/build_on_server.py
+deploy/remote_deploy.py
+deploy/setup_docker_mirror.py
+deploy/cvm_manager.py
+frontend/deploy.zip
+
+# Docker volumes (local only)
+pgdata/
 
 # Claude settings
 .claude/
+
+# Trae settings
+.trae/

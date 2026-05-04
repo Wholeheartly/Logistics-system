@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 
-const API = 'http://localhost:8000';
+import API from '../../config/api';
 
 interface User {
   id: number;
@@ -44,10 +44,12 @@ export default function UserManagePage() {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      let url = `${API}/api/users?token=${token}&page=${page}&page_size=20`;
+      let url = `${API}/api/users?page=${page}&page_size=20`;
       if (filterStatus !== 'all') url += `&status=${filterStatus}`;
       if (searchKeyword) url += `&keyword=${encodeURIComponent(searchKeyword)}`;
-      const res = await fetch(url);
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
       const data = await res.json();
       setUsers(data.users || []);
       setTotal(data.total || 0);
@@ -64,8 +66,9 @@ export default function UserManagePage() {
 
   const handleApprove = async (userId: number) => {
     try {
-      const res = await fetch(`${API}/api/users/${userId}/approve?token=${token}`, {
+      const res = await fetch(`${API}/api/users/${userId}/approve`, {
         method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
       });
       if (res.ok) { fetchUsers(); }
       else { const data = await res.json(); alert(data.detail || '审核失败'); }
@@ -75,9 +78,9 @@ export default function UserManagePage() {
   const handleUpdate = async () => {
     if (!editingUser) return;
     try {
-      const res = await fetch(`${API}/api/users/${editingUser.id}/update?token=${token}`, {
+      const res = await fetch(`${API}/api/users/${editingUser.id}/update`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ role: editRole, status: editStatus }),
       });
       if (res.ok) { setEditingUser(null); fetchUsers(); }

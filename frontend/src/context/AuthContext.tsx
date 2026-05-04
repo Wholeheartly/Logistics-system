@@ -50,7 +50,7 @@ export interface RegisterData {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const API = 'http://localhost:8000';
+import API from '../config/api';
 
 /**
  * 创建带认证头的请求配置
@@ -213,6 +213,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
       if (!res.ok) {
         alert(data.detail || '登录失败');
+        return false;
+      }
+
+      if (!data.success || !data.token || !data.user) {
+        alert(data.message || data.detail || '登录响应数据异常，请重试');
         return false;
       }
 

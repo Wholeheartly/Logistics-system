@@ -10,7 +10,7 @@
 
 import type { ShippingFeeQueryParams, ShippingFeeQueryResult, CacheEntry } from '../../../types/shipping';
 
-const API = 'http://localhost:8000';
+import API from '../../../config/api';
 const CACHE_TTL = 5 * 60 * 1000; // 缓存5分钟
 const REQUEST_TIMEOUT = 3000; // 3秒超时
 

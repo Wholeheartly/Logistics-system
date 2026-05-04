@@ -1,6 +1,8 @@
 """
-数据导入脚本 — 从 Excel 文件中抽取数据并写入 SQLite 数据库。
+数据导入脚本 — 从 Excel 文件中抽取数据并写入数据库。
 运行: cd backend && python scripts/seed_database.py
+  本地: python scripts/seed_database.py
+  生产: DATABASE_URL=postgresql://... python scripts/seed_database.py
 """
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -11,16 +13,21 @@ from sqlalchemy.orm import Session
 
 from app.models.models import Base, Carrier, Product, BaseRate, SurchargeConfig, ZoneMapping, UnserviceableZip
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-DB_PATH = os.path.join(PROJECT_ROOT, "backend", "logistics.db")
-DATA_DIR = PROJECT_ROOT  # Excel 文件在项目根目录
+DB_URL = os.environ.get("DATABASE_URL", "")
+if not DB_URL:
+    PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    DB_PATH = os.path.join(PROJECT_ROOT, "backend", "logistics.db")
+    DB_URL = f"sqlite:///{DB_PATH}"
+    DATA_DIR = PROJECT_ROOT
+else:
+    DATA_DIR = os.environ.get("DATA_DIR", os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-engine = create_engine(f"sqlite:///{DB_PATH}", echo=False)
+engine = create_engine(DB_URL, echo=False)
 
 
 def create_db():
     Base.metadata.create_all(engine)
-    print(f"数据库已创建: {DB_PATH}")
+    print(f"数据库已创建: {DB_URL.split('@')[-1] if '@' in DB_URL else DB_URL}")
 
 
 def import_products(session: Session):

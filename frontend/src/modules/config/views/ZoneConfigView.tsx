@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 
-const API = 'http://localhost:8000';
+import API from '../../../config/api';
 
 interface ZoneMapping {
   id: number;

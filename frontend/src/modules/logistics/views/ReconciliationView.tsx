@@ -3,7 +3,7 @@ import { useLogistics } from '../context/LogisticsContext';
 import { useAuth } from '../../../context/AuthContext';
 import type { ReconBatch, ReconDetail } from '../../../types';
 
-const API = 'http://localhost:8000';
+import API from '../../../config/api';
 
 /**
  * 带认证的 fetch 辅助函数

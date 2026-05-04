@@ -1,0 +1,14 @@
+node_modules
+dist
+.env
+.env.*
+.git
+.gitignore
+*.md
+src/test/
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+coverage/
+vitest.config.ts

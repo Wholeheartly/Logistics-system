@@ -155,10 +155,10 @@ def parse_excel_to_products(file_content: bytes, file_name: str) -> tuple[list[d
         "specification": ["specification", "规格", "产品规格", "规格参数"],
         "price": ["price", "价格", "单价", "售价", "成本价"],
         "stock_quantity": ["stock_quantity", "库存数量", "库存", "数量", "stock", "库存量"],
-        "length_cm": ["length_cm", "长度(cm)", "长度", "长", "长(cm)"],
-        "width_cm": ["width_cm", "宽度(cm)", "宽度", "宽", "宽(cm)"],
-        "height_cm": ["height_cm", "高度(cm)", "高度", "高", "高(cm)"],
-        "gross_weight_kg": ["gross_weight_kg", "毛重(kg)", "重量(kg)", "重量", "毛重", "净重"],
+        "length_cm": ["length_cm", "长度(cm)", "长度", "长", "长(cm)", "长cm"],
+        "width_cm": ["width_cm", "宽度(cm)", "宽度", "宽", "宽(cm)", "宽cm"],
+        "height_cm": ["height_cm", "高度(cm)", "高度", "高", "高(cm)", "高cm"],
+        "gross_weight_kg": ["gross_weight_kg", "毛重(kg)", "重量(kg)", "重量", "毛重", "净重", "毛重（KG）"],
         "category": ["category", "分类", "产品分类", "类别", "品类"],
         "brand": ["brand", "品牌", "产品品牌"],
         "supplier": ["supplier", "供应商", "供货商", "厂商"],
@@ -167,7 +167,6 @@ def parse_excel_to_products(file_content: bytes, file_name: str) -> tuple[list[d
 
     # 自动匹配列
     matched_columns = {}
-    df_columns_lower = {str(col).strip(): str(col).strip() for col in df.columns}
 
     for field, candidates in column_mapping.items():
         for col in df.columns:
@@ -176,8 +175,8 @@ def parse_excel_to_products(file_content: bytes, file_name: str) -> tuple[list[d
                 matched_columns[field] = col_str
                 break
 
-    # 检查必填列
-    required_fields = ["sku", "name", "length_cm", "width_cm", "height_cm", "gross_weight_kg"]
+    # 检查必填列（模板文件只有 sku/length_cm/width_cm/height_cm/gross_weight_kg，name 允许为空并用 sku 填充）
+    required_fields = ["sku", "length_cm", "width_cm", "height_cm", "gross_weight_kg"]
     missing_columns = [f for f in required_fields if f not in matched_columns]
     if missing_columns:
         return [], [{"row": 0, "sku": "", "errors": [f"缺少必填列: {', '.join(missing_columns)}，请检查表头名称"]}]
@@ -192,6 +191,10 @@ def parse_excel_to_products(file_content: bytes, file_name: str) -> tuple[list[d
                 record[field] = None
             else:
                 record[field] = value
+
+        # 模板文件没有 name 列时，使用 sku 作为产品名称
+        if record.get("name") is None and record.get("sku") is not None:
+            record["name"] = str(record.get("sku")).strip()
 
         is_valid, row_errors = validate_product_data(record)
         sku = str(record.get("sku", "")).strip()

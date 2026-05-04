@@ -3,7 +3,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useLogistics } from '../context/LogisticsContext';
 import type { CarrierResult, CompareResult, ZoneCompareResult } from '../../../types';
 
-const API = 'http://localhost:8000';
+import API from '../../../config/api';
 
 const WAREHOUSES = [
   { code: 'CA', name: 'CA 西部仓' },

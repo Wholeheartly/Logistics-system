@@ -42,6 +42,7 @@ from app.services.auth_service import (
     hash_password, verify_password
 )
 from app.models.models import (
+    Product, Carrier, ZoneMapping,
     ReconciliationBatch, ReconciliationDetail,
     ConfigItem, ConfigHistory, ConfigAuditLog, ConfigCategory,
     User, UserRole, UserStatus, ROLE_PERMISSIONS, DEPARTMENT_ROLE_MAP,
@@ -366,7 +367,13 @@ async def reconciliation_upload(
             raise HTTPException(status_code=400, detail=f"文件解析失败: {str(e)}")
 
         # 执行对账
-        result = run_reconciliation(session, batch, records)
+        try:
+            result = run_reconciliation(session, batch, records)
+        except Exception as e:
+            batch.status = "failed"
+            batch.error_message = f"对账执行失败: {str(e)}"
+            session.commit()
+            raise HTTPException(status_code=400, detail=f"对账执行失败: {str(e)}")
 
         return {
             "batch_id": batch.id,
@@ -1180,13 +1187,14 @@ def auth_login(req: LoginRequest):
 
 
 @app.get("/api/auth/me")
-def auth_me(token: Optional[str] = Query(default=None)):
+def auth_me(request: Request, token: Optional[str] = Query(default=None)):
     """获取当前登录用户信息"""
-    if not token or not token.strip():
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
         raise HTTPException(status_code=401, detail="未登录或令牌为空")
     session = get_session()
     try:
-        user = get_current_user(session, token)
+        user = get_current_user(session, effective_token)
         if not user:
             raise HTTPException(status_code=401, detail="登录已过期或无效")
         return {
@@ -1254,7 +1262,8 @@ def auth_reset_password(req: PasswordResetRequest = None):
 
 @app.get("/api/users")
 def users_list(
-    token: str = Query(...),
+    request: Request,
+    token: Optional[str] = Query(default=None),
     status: Optional[str] = Query(None),
     role: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
@@ -1262,9 +1271,12 @@ def users_list(
     keyword: Optional[str] = Query(None),
 ):
     """查询用户列表（管理员）"""
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current or not has_permission(current, "user.manage"):
             raise HTTPException(status_code=403, detail="权限不足")
         
@@ -1323,13 +1335,16 @@ def users_list(
 
 
 @app.post("/api/users")
-def users_create(token: str = Query(...), req: UserCreateRequest = None):
+def users_create(request: Request, token: Optional[str] = Query(default=None), req: UserCreateRequest = None):
     """管理员创建用户（带部门角色校验）"""
     if req is None:
         raise HTTPException(status_code=400, detail="请求体不能为空")
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current or not has_permission(current, "user.create"):
             raise HTTPException(status_code=403, detail="权限不足")
 
@@ -1371,11 +1386,14 @@ def users_create(token: str = Query(...), req: UserCreateRequest = None):
 
 
 @app.post("/api/users/{user_id}/approve")
-def users_approve(user_id: int, token: str = Query(...)):
+def users_approve(request: Request, user_id: int, token: Optional[str] = Query(default=None)):
     """审核通过用户"""
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current or not has_permission(current, "user.approve"):
             raise HTTPException(status_code=403, detail="权限不足")
 
@@ -1388,11 +1406,14 @@ def users_approve(user_id: int, token: str = Query(...)):
 
 
 @app.post("/api/users/{user_id}/disable")
-def users_disable(user_id: int, token: str = Query(...)):
+def users_disable(request: Request, user_id: int, token: Optional[str] = Query(default=None)):
     """禁用用户"""
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current or not has_permission(current, "user.delete"):
             raise HTTPException(status_code=403, detail="权限不足")
 
@@ -1405,11 +1426,14 @@ def users_disable(user_id: int, token: str = Query(...)):
 
 
 @app.post("/api/users/{user_id}/enable")
-def users_enable(user_id: int, token: str = Query(...)):
+def users_enable(request: Request, user_id: int, token: Optional[str] = Query(default=None)):
     """重新启用被禁用的用户（需要 user.edit 权限）"""
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current or not has_permission(current, "user.edit"):
             raise HTTPException(status_code=403, detail="权限不足，无法执行用户启用操作")
 
@@ -1422,11 +1446,14 @@ def users_enable(user_id: int, token: str = Query(...)):
 
 
 @app.post("/api/users/{user_id}/reset-password")
-def admin_reset_password(user_id: int, token: str = Query(...), new_password: str = Query(...)):
+def admin_reset_password(request: Request, user_id: int, token: Optional[str] = Query(default=None), new_password: str = Query(...)):
     """管理员重置用户密码"""
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current or not has_permission(current, "user.edit"):
             raise HTTPException(status_code=403, detail="权限不足")
 
@@ -1449,13 +1476,16 @@ class UserUpdateRequest(BaseModel):
 
 
 @app.post("/api/users/{user_id}/update")
-def users_update(user_id: int, token: str = Query(...), req: UserUpdateRequest = None):
+def users_update(request: Request, user_id: int, token: Optional[str] = Query(default=None), req: UserUpdateRequest = None):
     """更新用户信息（管理员）"""
     if req is None:
         raise HTTPException(status_code=400, detail="请求体不能为空")
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current or not has_permission(current, "user.edit"):
             raise HTTPException(status_code=403, detail="权限不足")
         
@@ -1541,11 +1571,14 @@ class ProfileUpdateRequest(BaseModel):
 
 
 @app.get("/api/users/departments")
-def list_departments(token: str = Query(...)):
+def list_departments(request: Request, token: Optional[str] = Query(default=None)):
     """获取部门与角色对应关系"""
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current:
             raise HTTPException(status_code=401, detail="未登录")
         return {
@@ -1649,13 +1682,16 @@ class ChangePasswordRequest(BaseModel):
 
 
 @app.post("/api/profile/password")
-def change_profile_password(token: str = Query(...), req: ChangePasswordRequest = None):
+def change_profile_password(request: Request, token: Optional[str] = Query(default=None), req: ChangePasswordRequest = None):
     """修改当前用户密码"""
     if req is None:
         raise HTTPException(status_code=400, detail="请求体不能为空")
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current:
             raise HTTPException(status_code=401, detail="未登录")
 
@@ -1682,11 +1718,14 @@ def change_profile_password(token: str = Query(...), req: ChangePasswordRequest 
 
 
 @app.post("/api/profile/avatar")
-async def upload_profile_avatar(token: str = Query(...), avatar: UploadFile = File(...)):
+async def upload_profile_avatar(request: Request, token: Optional[str] = Query(default=None), avatar: UploadFile = File(...)):
     """上传用户头像"""
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current:
             raise HTTPException(status_code=401, detail="未登录")
 
@@ -1718,8 +1757,8 @@ async def upload_profile_avatar(token: str = Query(...), avatar: UploadFile = Fi
             except:
                 pass
 
-        # 生成头像URL
-        avatar_url = f"http://localhost:8000/uploads/avatars/{unique_filename}"
+        avatar_base = os.environ.get("AVATAR_BASE_URL", "http://localhost:8000/uploads/avatars")
+        avatar_url = f"{avatar_base}/{unique_filename}"
         
         # 更新用户头像
         current.avatar_url = avatar_url
@@ -1732,11 +1771,14 @@ async def upload_profile_avatar(token: str = Query(...), avatar: UploadFile = Fi
 
 
 @app.post("/api/products/search")
-def products_search(req: ProductSearchRequest, token: str = Query(...)):
+def products_search(request: Request, req: ProductSearchRequest, token: Optional[str] = Query(default=None)):
     """产品搜索（需要登录），返回包含双版本单位信息"""
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current or not has_permission(current, Permission.PRODUCT_VIEW):
             raise HTTPException(status_code=403, detail="您的权限不足，无法执行此操作")
         if not req.keyword:
@@ -1782,11 +1824,14 @@ def products_search(req: ProductSearchRequest, token: str = Query(...)):
 # ========== 产品添加 API ==========
 
 @app.post("/api/products")
-def products_create(req: ProductCreateRequest, token: str = Query(...)):
+def products_create(request: Request, req: ProductCreateRequest, token: Optional[str] = Query(default=None)):
     """手动添加产品（需要 product.create 权限），自动进行单位转换"""
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current or not has_permission(current, Permission.PRODUCT_CREATE):
             raise HTTPException(status_code=403, detail="您的权限不足，无法添加产品")
 
@@ -1828,11 +1873,14 @@ def products_create(req: ProductCreateRequest, token: str = Query(...)):
 
 
 @app.post("/api/products/check-sku")
-def products_check_sku(sku: str = Query(...), token: str = Query(...)):
+def products_check_sku(request: Request, sku: str = Query(...), token: Optional[str] = Query(default=None)):
     """检查 SKU 是否已存在"""
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current:
             raise HTTPException(status_code=401, detail="未登录")
 
@@ -1843,11 +1891,14 @@ def products_check_sku(sku: str = Query(...), token: str = Query(...)):
 
 
 @app.post("/api/products/import/excel")
-async def products_import_excel(file: UploadFile = File(...), token: str = Query(...)):
+async def products_import_excel(request: Request, file: UploadFile = File(...), token: Optional[str] = Query(default=None)):
     """Excel 批量导入产品（需要 product.create 权限）"""
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current or not has_permission(current, Permission.PRODUCT_CREATE):
             raise HTTPException(status_code=403, detail="您的权限不足，无法导入产品")
 
@@ -1896,18 +1947,19 @@ def products_import_template():
     ws = wb.active
     ws.title = "产品导入模板"
 
-    # 表头
+    # 表头（与 产品数据库.xlsx 模板保持一致，同时兼容扩展字段）
     headers = [
-        "sku", "name", "model", "specification", "price",
-        "stock_quantity", "length_cm", "width_cm", "height_cm",
-        "gross_weight_kg", "category", "brand", "supplier", "description"
+        "SKU", "长cm", "宽cm", "高cm", "毛重（KG）",
+        "name", "model", "specification", "price",
+        "stock_quantity", "category", "brand", "supplier", "description"
     ]
     ws.append(headers)
 
     # 示例数据
     example = [
-        "SKU001", "示例产品", "Model-A", "10x20x30cm", 99.99,
-        100, 10.0, 20.0, 30.0, 1.5, "电子产品", "示例品牌", "示例供应商", "产品描述"
+        "SKU001", 10.0, 20.0, 30.0, 1.5,
+        "示例产品", "Model-A", "10x20x30cm", 99.99,
+        100, "电子产品", "示例品牌", "示例供应商", "产品描述"
     ]
     ws.append(example)
 
@@ -1920,7 +1972,7 @@ def products_import_template():
         cell.alignment = Alignment(horizontal="center", vertical="center")
 
     # 调整列宽
-    column_widths = [15, 20, 15, 20, 10, 15, 12, 12, 12, 15, 12, 12, 18, 25]
+    column_widths = [15, 10, 10, 10, 12, 15, 15, 20, 10, 15, 12, 12, 18, 25]
     for i, width in enumerate(column_widths, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
 
@@ -1928,16 +1980,16 @@ def products_import_template():
     ws_help = wb.create_sheet("填写说明")
     ws_help.append(["字段名", "说明", "是否必填", "示例"])
     help_data = [
-        ["sku", "产品唯一编码", "必填", "SKU001"],
-        ["name", "产品名称", "必填", "示例产品"],
+        ["SKU", "产品唯一编码", "必填", "SKU001"],
+        ["长cm", "长度（厘米）", "必填", "10.0"],
+        ["宽cm", "宽度（厘米）", "必填", "20.0"],
+        ["高cm", "高度（厘米）", "必填", "30.0"],
+        ["毛重（KG）", "毛重（千克）", "必填", "1.5"],
+        ["name", "产品名称", "选填（默认使用SKU）", "示例产品"],
         ["model", "产品型号", "选填", "Model-A"],
         ["specification", "规格描述", "选填", "10x20x30cm"],
         ["price", "价格", "选填", "99.99"],
         ["stock_quantity", "库存数量", "选填", "100"],
-        ["length_cm", "长度（厘米）", "必填", "10.0"],
-        ["width_cm", "宽度（厘米）", "必填", "20.0"],
-        ["height_cm", "高度（厘米）", "必填", "30.0"],
-        ["gross_weight_kg", "毛重（千克）", "必填", "1.5"],
         ["category", "产品分类", "选填", "电子产品"],
         ["brand", "品牌", "选填", "示例品牌"],
         ["supplier", "供应商", "选填", "示例供应商"],
@@ -1976,11 +2028,14 @@ def products_import_template():
 
 
 @app.post("/api/products/convert-all")
-def products_convert_all(token: str = Query(...)):
+def products_convert_all(request: Request, token: Optional[str] = Query(default=None)):
     """批量转换所有未转换产品的单位（需要 product.create 权限）"""
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current or not has_permission(current, Permission.PRODUCT_CREATE):
             raise HTTPException(status_code=403, detail="您的权限不足，无法执行此操作")
 
@@ -1996,11 +2051,14 @@ def products_convert_all(token: str = Query(...)):
 
 
 @app.get("/api/products/{sku}/detail")
-def products_detail(sku: str, token: str = Query(...)):
+def products_detail(request: Request, sku: str, token: Optional[str] = Query(default=None)):
     """获取产品详细信息（含双版本单位）"""
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current or not has_permission(current, Permission.PRODUCT_VIEW):
             raise HTTPException(status_code=403, detail="您的权限不足，无法执行此操作")
 
@@ -2016,11 +2074,14 @@ def products_detail(sku: str, token: str = Query(...)):
 # ========== RBAC 权限系统 API ==========
 
 @app.get("/api/roles")
-def list_roles(token: str = Query(...)):
+def list_roles(request: Request, token: Optional[str] = Query(default=None)):
     """获取角色列表与权限矩阵（管理员）"""
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current or not has_permission(current, Permission.ROLE_MANAGE):
             raise HTTPException(status_code=403, detail="您的权限不足，无法执行此操作")
 
@@ -2045,11 +2106,14 @@ def list_roles(token: str = Query(...)):
 
 
 @app.get("/api/roles/permissions")
-def list_all_permissions(token: str = Query(...)):
+def list_all_permissions(request: Request, token: Optional[str] = Query(default=None)):
     """获取所有可用权限列表（管理员）"""
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current or not has_permission(current, Permission.ROLE_MANAGE):
             raise HTTPException(status_code=403, detail="您的权限不足，无法执行此操作")
 
@@ -2067,11 +2131,14 @@ def list_all_permissions(token: str = Query(...)):
 
 
 @app.post("/api/roles/check")
-def check_permission_api(req: PermissionCheckRequest, token: str = Query(...)):
+def check_permission_api(request: Request, req: PermissionCheckRequest, token: Optional[str] = Query(default=None)):
     """检查当前用户是否拥有指定权限"""
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current:
             raise HTTPException(status_code=401, detail="未登录或登录已过期")
 
@@ -2086,11 +2153,14 @@ def check_permission_api(req: PermissionCheckRequest, token: str = Query(...)):
 
 
 @app.post("/api/users/{user_id}/role")
-def assign_user_role(user_id: int, req: RoleAssignRequest, token: str = Query(...)):
+def assign_user_role(request: Request, user_id: int, req: RoleAssignRequest, token: Optional[str] = Query(default=None)):
     """分配用户角色（仅管理员）"""
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current or not has_permission(current, Permission.ROLE_ASSIGN):
             raise HTTPException(status_code=403, detail="您的权限不足，无法执行此操作")
 
@@ -2124,11 +2194,14 @@ def assign_user_role(user_id: int, req: RoleAssignRequest, token: str = Query(..
 
 
 @app.get("/api/users/{user_id}/permissions")
-def get_user_permissions(user_id: int, token: str = Query(...)):
+def get_user_permissions(request: Request, user_id: int, token: Optional[str] = Query(default=None)):
     """获取指定用户的权限列表（管理员）"""
+    effective_token = _get_token_from_request(request, token)
+    if not effective_token:
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
     session = get_session()
     try:
-        current = get_current_user(session, token)
+        current = get_current_user(session, effective_token)
         if not current or not has_permission(current, Permission.USER_MANAGE):
             raise HTTPException(status_code=403, detail="您的权限不足，无法执行此操作")
 

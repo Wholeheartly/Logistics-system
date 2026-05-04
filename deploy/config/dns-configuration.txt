@@ -1,0 +1,49 @@
+# Internal DNS Configuration for Logistics System
+# Add this to your internal DNS server (BIND/Active Directory/CoreDNS)
+
+# === BIND9 Configuration ===
+
+# 1. Add zone to /etc/bind/named.conf.local
+zone "logistics.internal.company.com" {
+    type master;
+    file "/etc/bind/zones/db.logistics.internal";
+};
+
+# 2. Create zone file: /etc/bind/zones/db.logistics.internal
+$TTL 86400
+@   IN  SOA  ns1.internal.company.com. admin.company.com. (
+            2024010101  ; Serial
+            3600        ; Refresh
+            1800        ; Retry
+            604800      ; Expire
+            86400       ; Minimum TTL
+        )
+
+    IN  NS   ns1.internal.company.com.
+
+; Application server
+@       IN  A    10.0.0.100
+
+; API subdomain (optional, if using separate API domain)
+api     IN  A    10.0.0.100
+
+; === Active Directory DNS ===
+# Add A record in AD DNS:
+# Name: logistics
+# Domain: internal.company.com
+# IP: 10.0.0.100
+# TTL: 1 hour
+
+# === CoreDNS Configuration (for Kubernetes/Docker environments) ===
+# Add to Corefile:
+logistics.internal.company.com:53 {
+    hosts {
+        10.0.0.100 logistics.internal.company.com
+        fallthrough
+    }
+}
+
+# === Client Configuration ===
+# Windows: Automatically picks up from AD DNS
+# Linux: Add to /etc/resolv.conf or systemd-resolved
+# nameserver 10.0.0.1  (your internal DNS server IP)
